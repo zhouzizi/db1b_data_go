@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -48,19 +49,30 @@ func main() {
 	//读取机航空公司信息
 	readAirlineCode()
 	//读取airlines
+
 	start := time.Now().Unix()
-	for _, d := range dates {
-		queryAirline(d)
-	}
-	fmt.Println("航班信息添加耗时", time.Now().Unix()-start, "s")
-
-	start = time.Now().Unix()
-	for _, d := range dates {
-		queryOriginDelays(d)
-		queryDestDelays(d)
-	}
-	fmt.Println("延误信息添加耗时", time.Now().Unix()-start, "s")
-
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		start1 := time.Now().Unix()
+		defer wg.Done()
+		for _, d := range dates {
+			queryAirline(d)
+		}
+		fmt.Println("航班信息添加耗时", time.Now().Unix()-start1, "s")
+	}()
+	wg.Add(1)
+	go func() {
+		start2 := time.Now().Unix()
+		defer wg.Done()
+		for _, d := range dates {
+			queryOriginDelays(d)
+			queryDestDelays(d)
+		}
+		fmt.Println("延误信息添加耗时", time.Now().Unix()-start2, "s")
+	}()
+	wg.Wait()
+	fmt.Println("总耗时", time.Now().Unix()-start, "s")
 }
 
 // 获取下载数据配置
