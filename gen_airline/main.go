@@ -479,7 +479,7 @@ func queryOriginDelays(d Date) {
 	}
 	w.Start(ctx)
 	defer w.Close()
-
+	var originDelayCount = 0
 	// 执行查询
 	var afterKey map[string]interface{}
 	for {
@@ -518,7 +518,7 @@ func queryOriginDelays(d Date) {
 			r.FlightCount = cast.ToInt64(bucket.DocCount)
 
 			req := elastic.NewBulkIndexRequest().Index(OriginOntimeReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.Airline, r.Airport}, "_")).Doc(r)
-
+			originDelayCount++
 			w.Add(req)
 		}
 
@@ -542,6 +542,8 @@ func queryOriginDelays(d Date) {
 			break
 		}
 	}
+
+	fmt.Println("最后originDelayCount:", originDelayCount)
 }
 func queryDestDelays(d Date) {
 
@@ -589,7 +591,7 @@ func queryDestDelays(d Date) {
 	}
 	w.Start(ctx)
 	defer w.Close()
-
+	var destDelayCount = 0
 	// 执行查询
 	var afterKey map[string]interface{}
 	for {
@@ -618,7 +620,7 @@ func queryDestDelays(d Date) {
 			var r = &OntimeReport{}
 			r.Year = cast.ToInt64(bucket.Key["year"])
 			r.Month = cast.ToInt64(bucket.Key["month"])
-			r.Airport = cast.ToString(bucket.Key["origin"])
+			r.Airport = cast.ToString(bucket.Key["dest"])
 			r.AirportName = airportMap[r.Airport]
 			r.Airline = cast.ToString(bucket.Key["reporting_airline"])
 			r.AirlineName = airlineMap[r.Airline]
@@ -628,7 +630,7 @@ func queryDestDelays(d Date) {
 			r.FlightCount = cast.ToInt64(bucket.DocCount)
 
 			req := elastic.NewBulkIndexRequest().Index(DestOntimeReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.Airline, r.Airport}, "_")).Doc(r)
-
+			destDelayCount++
 			w.Add(req)
 		}
 
@@ -652,6 +654,8 @@ func queryDestDelays(d Date) {
 			break
 		}
 	}
+
+	fmt.Println("最后destDelayCount:", destDelayCount)
 }
 func GetFailed(executionId int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
 	if response == nil { //可能存在为空的情况 😳
