@@ -20,10 +20,11 @@ const (
 	ESUrl       = "http://127.0.0.1:9200/"
 	bulkActions = 1000
 
-	OnTimeDataIndexName         = "on_time_data"
-	AirlinesIndexName           = "airlines"
-	OriginOntimeReportIndexName = "origin_ontime_report"
-	DestOntimeReportIndexName   = "dest_ontime_report"
+	OnTimeDataIndexName                = "on_time_data"
+	AirlinesIndexName                  = "airlines"
+	OriginAirportFlightReportIndexName = "origin_airport_flight_report"
+
+	DestAirportFlightReportIndexName = "dest_airport_flight_report"
 )
 
 var (
@@ -39,16 +40,15 @@ func main() {
 	if dates == nil {
 		os.Exit(0)
 	}
-	fmt.Println("待下载数据时间为:", dates)
+	fmt.Println("待处理数据时间为:", dates)
 	connectES()
-	initAirlinesIndex()
+	initAirCarrierIndex()
 	initOriginReportsIndex()
 	initDestReportsIndex()
 	//读取机场代码信息
 	readAirportCode()
 	//读取机航空公司信息
 	readAirlineCode()
-	//读取airlines
 
 	start := time.Now().Unix()
 	var wg sync.WaitGroup
@@ -111,7 +111,7 @@ func connectES() {
 }
 
 // 创建索引
-func initAirlinesIndex() {
+func initAirCarrierIndex() {
 	ctx := context.Background()
 	exists, err := esClient.IndexExists(AirlinesIndexName).Do(ctx)
 	if err != nil {
@@ -137,7 +137,7 @@ func initAirlinesIndex() {
             "dest_city": {
                 "type": "keyword"
             },
-            "airline": {
+            "air_carrier": {
                 "type": "keyword"
             },
             "tail_number": {
@@ -160,123 +160,135 @@ func initAirlinesIndex() {
 }
 func initOriginReportsIndex() {
 	ctx := context.Background()
-	exists, err := esClient.IndexExists(OriginOntimeReportIndexName).Do(ctx)
+	exists, err := esClient.IndexExists(OriginAirportFlightReportIndexName).Do(ctx)
 	if err != nil {
-		fmt.Println("判断OriginOntimeReportIndexName是否存在失败:", err)
+		fmt.Println("判断", OriginAirportFlightReportIndexName, "是否存在失败:", err)
 		os.Exit(0)
 	}
 	if exists {
 		// Index does not exist yet.
-		fmt.Println(OriginOntimeReportIndexName, "索引已存在")
+		fmt.Println(OriginAirportFlightReportIndexName, "索引已存在")
 		return
 	}
 	mapping := `{
 	"mappings": {
 		"properties": {
+			"airport": {
+				"type": "keyword"
+			},
+			"air_carrier": {
+				"type": "keyword"
+			},
 			"year": {
 				"type": "short"
 			},
 			"month": {
 				"type": "short"
 			},
-			"airport": {
-				"type": "keyword"
-			},
-			"airport_name": {
-				"type": "keyword"
-			},
-			"airline": {
-				"type": "keyword"
-			},
-			"airline_name": {
-				"type": "keyword"
-			},
-			"ontime_count": {
+			"flight_count": {
 				"type": "integer"
 			},
-			"delayed_count": {
+			"early_departure_count": {
+				"type": "integer"
+			},
+			"delayed_departure_count": {
+				"type": "integer"
+			},
+			"delayed_15_departure_count": {
+				"type": "integer"
+			},
+			"early_arrival_count": {
+				"type": "integer"
+			},
+			"delayed_arrival_count": {
+				"type": "integer"
+			},
+			"delayed_15_arrival_count": {
 				"type": "integer"
 			},
 			"cancelled_count": {
-				"type": "integer"
-			},
-			"flight_count": {
 				"type": "integer"
 			}
 		}
 	}
 }`
-	index, err := esClient.CreateIndex(OriginOntimeReportIndexName).BodyString(mapping).Do(ctx)
+	index, err := esClient.CreateIndex(OriginAirportFlightReportIndexName).BodyString(mapping).Do(ctx)
 	if err != nil {
-		fmt.Println("创建OriginOntimeReportIndexName失败:", err)
+		fmt.Println("创建", OriginAirportFlightReportIndexName, "失败:", err)
 		os.Exit(0)
 	}
 	if !index.Acknowledged {
 		// Not acknowledged
-		fmt.Println("创建OriginOntimeReportIndexName.no")
+		fmt.Println("创建", OriginAirportFlightReportIndexName, ".no")
 		os.Exit(0)
 	}
-	fmt.Println("OriginOntimeReportIndexName成功")
+	fmt.Println("init", OriginAirportFlightReportIndexName, "成功")
 }
 func initDestReportsIndex() {
 	ctx := context.Background()
-	exists, err := esClient.IndexExists(DestOntimeReportIndexName).Do(ctx)
+	exists, err := esClient.IndexExists(DestAirportFlightReportIndexName).Do(ctx)
 	if err != nil {
-		fmt.Println("判断DestOntimeReportIndexName是否存在失败:", err)
+		fmt.Println("判断", DestAirportFlightReportIndexName, "是否存在失败:", err)
 		os.Exit(0)
 	}
 	if exists {
 		// Index does not exist yet.
-		fmt.Println(DestOntimeReportIndexName, "索引已存在")
+		fmt.Println(DestAirportFlightReportIndexName, "索引已存在")
 		return
 	}
 	mapping := `{
 	"mappings": {
 		"properties": {
+			"airport": {
+				"type": "keyword"
+			},
+			"air_carrier": {
+				"type": "keyword"
+			},
 			"year": {
 				"type": "short"
 			},
 			"month": {
 				"type": "short"
 			},
-			"airport": {
-				"type": "keyword"
-			},
-			"airport_name": {
-				"type": "keyword"
-			},
-			"airline": {
-				"type": "keyword"
-			},
-			"airline_name": {
-				"type": "keyword"
-			},
-			"ontime_count": {
+			"flight_count": {
 				"type": "integer"
 			},
-			"delayed_count": {
+			"early_departure_count": {
+				"type": "integer"
+			},
+			"delayed_departure_count": {
+				"type": "integer"
+			},
+			"delayed_15_departure_count": {
+				"type": "integer"
+			},
+			"early_arrival_count": {
+				"type": "integer"
+			},
+			"delayed_arrival_count": {
+				"type": "integer"
+			},
+			"delayed_15_arrival_count": {
 				"type": "integer"
 			},
 			"cancelled_count": {
-				"type": "integer"
-			},
-			"flight_count": {
 				"type": "integer"
 			}
 		}
 	}
 }`
-	index, err := esClient.CreateIndex(DestOntimeReportIndexName).BodyString(mapping).Do(ctx)
+	index, err := esClient.CreateIndex(DestAirportFlightReportIndexName).BodyString(mapping).Do(ctx)
 	if err != nil {
-		fmt.Println("创建DestOntimeReportIndexName失败:", err)
+		fmt.Println("创建", DestAirportFlightReportIndexName, "失败:", err)
 		os.Exit(0)
 	}
 	if !index.Acknowledged {
 		// Not acknowledged
-		fmt.Println("创建DestOntimeReportIndexName.no")
+		fmt.Println("创建", DestAirportFlightReportIndexName, ".no")
 		os.Exit(0)
 	}
-	fmt.Println("DestOntimeReportIndexName成功")
+	fmt.Println("init", DestAirportFlightReportIndexName, "成功")
 }
 
 // 读取机场到内存
@@ -403,7 +415,7 @@ func queryAirline(d Date) {
 			_ = json.Unmarshal(hit.Source, &source)
 			al.OriginCity = cast.ToString(source["origin_city_name"])
 			al.DestCity = cast.ToString(source["dest_city_name"])
-			al.Airline = airlineMap[cast.ToString(source["reporting_airline"])]
+			al.AirCarrier = airlineMap[cast.ToString(source["reporting_airline"])]
 
 			req := elastic.NewBulkIndexRequest().Index(AirlinesIndexName).Id(strings.Join([]string{cast.ToString(bucket.Key["origin"]), cast.ToString(bucket.Key["dest"]), cast.ToString(bucket.Key["tail_number"])}, "_")).Doc(al)
 			count++
@@ -449,19 +461,43 @@ func queryOriginDelays(d Date) {
 	)
 
 	// 添加子聚合统计准点航班、延迟航班、取消航班
-	compositeAgg.SubAggregation("ontime_flights", elastic.NewFilterAggregation().Filter(
+	compositeAgg.SubAggregation("early_departure_count", elastic.NewFilterAggregation().Filter(
 		elastic.NewBoolQuery().Must(
-			elastic.NewTermQuery("dep_del15", 0),
+			elastic.NewRangeQuery("dep_delay").Lt(0),
 			elastic.NewTermQuery("cancelled", 0),
 		),
 	)).
-		SubAggregation("delayed_flights", elastic.NewFilterAggregation().Filter(
+		SubAggregation("delayed_departure_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("dep_delay").Gt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_15_departure_count", elastic.NewFilterAggregation().Filter(
 			elastic.NewBoolQuery().Must(
 				elastic.NewTermQuery("dep_del15", 1),
 				elastic.NewTermQuery("cancelled", 0),
 			),
 		)).
-		SubAggregation("cancelled_flights", elastic.NewFilterAggregation().Filter(
+		SubAggregation("early_arrival_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("arr_delay").Lt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_arrival_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("arr_delay").Gt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_15_arrival_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewTermQuery("arr_del15", 1),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("cancelled_count", elastic.NewFilterAggregation().Filter(
 			elastic.NewTermQuery("cancelled", 1),
 		))
 
@@ -501,23 +537,29 @@ func queryOriginDelays(d Date) {
 		compositeAggResult, _ := searchResult.Aggregations.Composite("composite_agg")
 		for _, bucket := range compositeAggResult.Buckets {
 
-			onTimeFlights, _ := bucket.Aggregations.Filter("ontime_flights")
-			delayedFlights, _ := bucket.Aggregations.Filter("delayed_flights")
-			cancelledFlights, _ := bucket.Aggregations.Filter("cancelled_flights")
+			earlyDepartureCount, _ := bucket.Aggregations.Filter("early_departure_count")
+			delayedDepartureCount, _ := bucket.Aggregations.Filter("delayed_departure_count")
+			delayed15DepartureCount, _ := bucket.Aggregations.Filter("delayed_15_departure_count")
+			earlyArrivalCount, _ := bucket.Aggregations.Filter("early_arrival_count")
+			delayedArrivalCount, _ := bucket.Aggregations.Filter("delayed_arrival_count")
+			delayed15ArrivalCount, _ := bucket.Aggregations.Filter("delayed_15_arrival_count")
+			cancelledCount, _ := bucket.Aggregations.Filter("cancelled_count")
 
-			var r = &OntimeReport{}
+			var r = &OntimeAirportFlightReport{}
 			r.Year = cast.ToInt64(bucket.Key["year"])
 			r.Month = cast.ToInt64(bucket.Key["month"])
 			r.Airport = cast.ToString(bucket.Key["origin"])
-			r.AirportName = airportMap[r.Airport]
-			r.Airline = cast.ToString(bucket.Key["reporting_airline"])
-			r.AirlineName = airlineMap[r.Airline]
-			r.OntimeCount = cast.ToInt64(onTimeFlights.DocCount)
-			r.DelayedCount = cast.ToInt64(delayedFlights.DocCount)
-			r.CancelledCount = cast.ToInt64(cancelledFlights.DocCount)
+			r.AirCarrier = cast.ToString(bucket.Key["reporting_airline"])
 			r.FlightCount = cast.ToInt64(bucket.DocCount)
+			r.EarlyDepartureCount = cast.ToInt64(earlyDepartureCount.DocCount)
+			r.DelayedDepartureCount = cast.ToInt64(delayedDepartureCount.DocCount)
+			r.Delayed15DepartureCount = cast.ToInt64(delayed15DepartureCount.DocCount)
+			r.EarlyArrivalCount = cast.ToInt64(earlyArrivalCount.DocCount)
+			r.DelayedArrivalCount = cast.ToInt64(delayedArrivalCount.DocCount)
+			r.Delayed15ArrivalCount = cast.ToInt64(delayed15ArrivalCount.DocCount)
+			r.CancelledCount = cast.ToInt64(cancelledCount.DocCount)
 
-			req := elastic.NewBulkIndexRequest().Index(OriginOntimeReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.Airline, r.Airport}, "_")).Doc(r)
+			req := elastic.NewBulkIndexRequest().Index(OriginAirportFlightReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.AirCarrier, r.Airport}, "_")).Doc(r)
 			originDelayCount++
 			w.Add(req)
 		}
@@ -555,26 +597,50 @@ func queryDestDelays(d Date) {
 
 	// 使用 Composite Aggregation 按多个字段进行分组
 	compositeAgg := elastic.NewCompositeAggregation().Size(2000).Sources(
-		elastic.NewCompositeAggregationTermsValuesSource("reporting_airline").Field("reporting_airline"),
-		elastic.NewCompositeAggregationTermsValuesSource("dest").Field("dest"),
 		elastic.NewCompositeAggregationTermsValuesSource("year").Field("year"),
 		elastic.NewCompositeAggregationTermsValuesSource("month").Field("month"),
+		elastic.NewCompositeAggregationTermsValuesSource("reporting_airline").Field("reporting_airline"),
+		elastic.NewCompositeAggregationTermsValuesSource("dest").Field("dest"),
 	)
 
 	// 添加子聚合统计准点航班、延迟航班、取消航班
-	compositeAgg.SubAggregation("ontime_flights", elastic.NewFilterAggregation().Filter(
+	compositeAgg.SubAggregation("early_departure_count", elastic.NewFilterAggregation().Filter(
 		elastic.NewBoolQuery().Must(
-			elastic.NewTermQuery("arr_del15", 0),
+			elastic.NewRangeQuery("dep_delay").Lt(0),
 			elastic.NewTermQuery("cancelled", 0),
 		),
 	)).
-		SubAggregation("delayed_flights", elastic.NewFilterAggregation().Filter(
+		SubAggregation("delayed_departure_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("dep_delay").Gt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_15_departure_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewTermQuery("dep_del15", 1),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("early_arrival_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("arr_delay").Lt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_arrival_count", elastic.NewFilterAggregation().Filter(
+			elastic.NewBoolQuery().Must(
+				elastic.NewRangeQuery("arr_delay").Gt(0),
+				elastic.NewTermQuery("cancelled", 0),
+			),
+		)).
+		SubAggregation("delayed_15_arrival_count", elastic.NewFilterAggregation().Filter(
 			elastic.NewBoolQuery().Must(
 				elastic.NewTermQuery("arr_del15", 1),
 				elastic.NewTermQuery("cancelled", 0),
 			),
 		)).
-		SubAggregation("cancelled_flights", elastic.NewFilterAggregation().Filter(
+		SubAggregation("cancelled_count", elastic.NewFilterAggregation().Filter(
 			elastic.NewTermQuery("cancelled", 1),
 		))
 
@@ -587,6 +653,7 @@ func queryDestDelays(d Date) {
 		After(GetFailed).
 		Do(ctx)
 	if err != nil {
+		// Handle error
 		panic(err)
 	}
 	w.Start(ctx)
@@ -613,23 +680,29 @@ func queryDestDelays(d Date) {
 		compositeAggResult, _ := searchResult.Aggregations.Composite("composite_agg")
 		for _, bucket := range compositeAggResult.Buckets {
 
-			onTimeFlights, _ := bucket.Aggregations.Filter("ontime_flights")
-			delayedFlights, _ := bucket.Aggregations.Filter("delayed_flights")
-			cancelledFlights, _ := bucket.Aggregations.Filter("cancelled_flights")
+			earlyDepartureCount, _ := bucket.Aggregations.Filter("early_departure_count")
+			delayedDepartureCount, _ := bucket.Aggregations.Filter("delayed_departure_count")
+			delayed15DepartureCount, _ := bucket.Aggregations.Filter("delayed_15_departure_count")
+			earlyArrivalCount, _ := bucket.Aggregations.Filter("early_arrival_count")
+			delayedArrivalCount, _ := bucket.Aggregations.Filter("delayed_arrival_count")
+			delayed15ArrivalCount, _ := bucket.Aggregations.Filter("delayed_15_arrival_count")
+			cancelledCount, _ := bucket.Aggregations.Filter("cancelled_count")
 
-			var r = &OntimeReport{}
+			var r = &OntimeAirportFlightReport{}
 			r.Year = cast.ToInt64(bucket.Key["year"])
 			r.Month = cast.ToInt64(bucket.Key["month"])
 			r.Airport = cast.ToString(bucket.Key["dest"])
-			r.AirportName = airportMap[r.Airport]
-			r.Airline = cast.ToString(bucket.Key["reporting_airline"])
-			r.AirlineName = airlineMap[r.Airline]
-			r.OntimeCount = cast.ToInt64(onTimeFlights.DocCount)
-			r.DelayedCount = cast.ToInt64(delayedFlights.DocCount)
-			r.CancelledCount = cast.ToInt64(cancelledFlights.DocCount)
+			r.AirCarrier = cast.ToString(bucket.Key["reporting_airline"])
 			r.FlightCount = cast.ToInt64(bucket.DocCount)
+			r.EarlyDepartureCount = cast.ToInt64(earlyDepartureCount.DocCount)
+			r.DelayedDepartureCount = cast.ToInt64(delayedDepartureCount.DocCount)
+			r.Delayed15DepartureCount = cast.ToInt64(delayed15DepartureCount.DocCount)
+			r.EarlyArrivalCount = cast.ToInt64(earlyArrivalCount.DocCount)
+			r.DelayedArrivalCount = cast.ToInt64(delayedArrivalCount.DocCount)
+			r.Delayed15ArrivalCount = cast.ToInt64(delayed15ArrivalCount.DocCount)
+			r.CancelledCount = cast.ToInt64(cancelledCount.DocCount)
 
-			req := elastic.NewBulkIndexRequest().Index(DestOntimeReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.Airline, r.Airport}, "_")).Doc(r)
+			req := elastic.NewBulkIndexRequest().Index(DestAirportFlightReportIndexName).Id(strings.Join([]string{cast.ToString(r.Year), cast.ToString(r.Month), r.AirCarrier, r.Airport}, "_")).Doc(r)
 			destDelayCount++
 			w.Add(req)
 		}
@@ -655,7 +728,7 @@ func queryDestDelays(d Date) {
 		}
 	}
 
-	fmt.Println("最后destDelayCount:", destDelayCount)
+	fmt.Println("最后DestDelayCount:", destDelayCount)
 }
 func GetFailed(executionId int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
 	if response == nil { //可能存在为空的情况 😳
@@ -682,18 +755,20 @@ type Airline struct {
 	OriginCity    string `json:"origin_city"`
 	DestAirport   string `json:"dest_airport"`
 	DestCity      string `json:"dest_city"`
-	Airline       string `json:"airline"`
+	AirCarrier    string `json:"air_carrier"`
 	TailNumber    string `json:"tail_number"`
 }
-type OntimeReport struct {
-	Year           int64  `json:"year"`
-	Month          int64  `json:"month"`
-	Airport        string `json:"airport"`
-	AirportName    string `json:"airport_name"`
-	Airline        string `json:"airline"`
-	AirlineName    string `json:"airline_name"`
-	OntimeCount    int64  `json:"ontime_count"`
-	DelayedCount   int64  `json:"delayed_count"`
-	CancelledCount int64  `json:"cancelled_count"`
-	FlightCount    int64  `json:"flight_count"`
+type OntimeAirportFlightReport struct {
+	Airport                 string `json:"airport"`
+	AirCarrier              string `json:"air_carrier"`
+	Year                    int64  `json:"year"`
+	Month                   int64  `json:"month"`
+	FlightCount             int64  `json:"flight_count"`
+	EarlyDepartureCount     int64  `json:"early_departure_count"`
+	DelayedDepartureCount   int64  `json:"delayed_departure_count"`
+	Delayed15DepartureCount int64  `json:"delayed_15_departure_count"`
+	EarlyArrivalCount       int64  `json:"early_arrival_count"`
+	DelayedArrivalCount     int64  `json:"delayed_arrival_count"`
+	Delayed15ArrivalCount   int64  `json:"delayed_15_arrival_count"`
+	CancelledCount          int64  `json:"cancelled_count"`
 }
