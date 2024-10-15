@@ -1,6 +1,6 @@
 ## 索引名称
 
-`airline`
+`airlines`
 
 ## 字段说明
 
