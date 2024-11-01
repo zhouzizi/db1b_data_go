@@ -1,0 +1,50 @@
+{"conditions": [
+  {
+    "field": "IATA_CODE_Reporting_Airline",
+    "op": "equals",
+    "value": "9E"
+  },
+  {
+    "field": "DayofMonth",
+    "op": "range",
+    "value": ["1","10"]
+  }
+],
+  "conditions3": [
+    {
+      "field": "IATA_CODE_Reporting_Airline",
+      "op": "equals",
+      "value": "9E"
+    },
+    {
+      "field": "Origin",
+      "op": "not_equals",
+      "value": "RIC"
+    }
+  ],
+  "conditions2": [
+    {
+      "field": "IATA_CODE_Reporting_Airline",
+      "op": "equals",
+      "value": "9E"
+    },
+    {
+      "field": "Origin",
+      "op": "equals",
+      "value": "RIC"
+    }
+  ],
+  "conditions1": [
+    {
+      "field": "IATA_CODE_Reporting_Airline",
+      "op": "equals",
+      "value": "9E"
+    },
+    {
+      "field": "Origin",
+      "op": "in",
+      "value": ["RIC","ABE"]
+    }
+  ],
+  "file_name" : "On_Time_Reporting_Carrier_On_Time_Performance_(1987_present)_2023_8.csv"
+}
