@@ -1,10 +1,13 @@
-[
-  {
-    "year": 2020,
-    "month": 1
-  },
-  {
-    "year": 2020,
-    "month": 2
+{
+  "dates": [
+    {
+      "year": 2020,
+      "month": 1
+    }
+  ],
+  "elasticsearch": {
+    "url": "http://127.0.0.1:9200",
+    "username": "",
+    "password": ""
   }
-]
+}
