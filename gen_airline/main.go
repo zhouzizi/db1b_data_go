@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,9 +18,10 @@ import (
 )
 
 const (
-	ESUrl       = "http://127.0.0.1:9200/"
+	//ESUrl       = "http://127.0.0.1:9200/"
 	bulkActions = 1000
 
+	CityInfoIndexName                  = "city_info"
 	OnTimeDataIndexName                = "on_time_data"
 	AirlinesIndexName                  = "airlines"
 	OriginAirportFlightReportIndexName = "origin_airport_flight_report"
@@ -28,20 +30,35 @@ const (
 )
 
 var (
-	dates        = []Date{}
+	config       = Config{}
 	actualNumCPU = runtime.GOMAXPROCS(0)
 	esClient     *elastic.Client
 	airportMap   = map[string]string{} // key:机场代码 value:机场名称
 	airlineMap   = map[string]string{} // key:航空公司代码 value:公司名称
+	cityInfoMap  = map[string]bool{}   //key：city_market_id ,value:domestic
 )
 
+type Config struct {
+	Dates []Date `json:"dates"`
+	Es    `json:"elasticsearch"`
+}
+type Es struct {
+	Url      string
+	Username string
+	Password string
+}
+
 func main() {
-	dates = getDateConfig()
-	if dates == nil {
+	config = getDateConfig()
+	if len(config.Dates) == 0 || config.Es.Url == "" {
+		fmt.Println("配置文件错误")
 		os.Exit(0)
 	}
-	fmt.Println("待处理数据时间为:", dates)
+	fmt.Println("待处理数据时间为:", config.Dates)
 	connectES()
+
+	readCityInfoIndexData()
+
 	initAirCarrierIndex()
 	initOriginReportsIndex()
 	initDestReportsIndex()
@@ -56,7 +73,7 @@ func main() {
 	go func() {
 		start1 := time.Now().Unix()
 		defer wg.Done()
-		for _, d := range dates {
+		for _, d := range config.Dates {
 			queryAirline(d)
 		}
 		fmt.Println("航班信息添加耗时", time.Now().Unix()-start1, "s")
@@ -65,7 +82,7 @@ func main() {
 	go func() {
 		start2 := time.Now().Unix()
 		defer wg.Done()
-		for _, d := range dates {
+		for _, d := range config.Dates {
 			queryOriginDelays(d)
 			queryDestDelays(d)
 		}
@@ -74,21 +91,52 @@ func main() {
 	wg.Wait()
 	fmt.Println("总耗时", time.Now().Unix()-start, "s")
 }
+func readCityInfoIndexData() {
+	ctx := context.Background()
+	searchResult, err := esClient.Search().Index(CityInfoIndexName).Size(10000).Do(ctx)
+	if err != nil {
+		fmt.Println("读取", CityInfoIndexName, "失败:", err)
+		os.Exit(0)
+	}
+
+	var count = 0
+	for _, hit := range searchResult.Hits.Hits {
+		var info CityInfo
+		if e := json.Unmarshal(hit.Source, &info); e != nil {
+			fmt.Println("readCityInfoIndexData.Unmarshal.err", err)
+			panic(e)
+		}
+		cityInfoMap[info.Code] = info.Domestic
+		count++
+	}
+
+	if count != len(cityInfoMap) {
+		fmt.Println("cityInfoCount", count, "map len:", len(cityInfoMap))
+		os.Exit(0)
+	}
+	fmt.Println("load cityInfo ok.")
+}
 
 // 获取下载数据配置
-func getDateConfig() []Date {
-	var config = []Date{}
-	f, err := os.Open("config.json")
+func getDateConfig() Config {
+	execDir, err := os.Getwd() // 获取当前工作目录
+	if err != nil {
+		fmt.Println("Error getting current working directory:", err)
+		panic(err)
+	}
+	// 拼接同级目录下的  文件路径
+	filePath := filepath.Join(execDir, "config.json")
+	f, err := os.Open(filePath)
 	if err != nil {
 		fmt.Println("读取配置文件失败:", err)
-		return nil
+		panic(err)
 	}
 	defer f.Close()
 	encoder := json.NewDecoder(f)
 	err = encoder.Decode(&config)
 	if err != nil {
 		fmt.Println("解析配置文件失败:", err)
-		return nil
+		panic(err)
 	}
 	return config
 }
@@ -98,7 +146,8 @@ func connectES() {
 	var err error
 	esClient, err = elastic.NewClient(
 		// 设置ES服务地址，支持多个地址
-		elastic.SetURL(ESUrl),
+		elastic.SetURL(config.Url),
+		elastic.SetBasicAuth(config.Username, config.Password),
 		elastic.SetSniff(false))
 	if err != nil {
 		// Handle error
@@ -364,7 +413,7 @@ func queryAirline(d Date) {
 	// 定义子聚合（top_hits用于获取origin_country和origin_state）
 	topHitsAgg := elastic.NewTopHitsAggregation().
 		Size(1). // 只需要返回1条记录
-		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("origin_city_name", "dest_city_name", "reporting_airline"))
+		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("origin_city_name", "dest_city_name", "origin_city_market_id", "dest_city_market_id", "reporting_airline"))
 
 	var afterKey map[string]interface{}
 
@@ -413,9 +462,19 @@ func queryAirline(d Date) {
 
 			var source map[string]interface{}
 			_ = json.Unmarshal(hit.Source, &source)
-			al.OriginCity = cast.ToString(source["origin_city_name"])
+			al.OriginCity = cast.ToString(source["origin_city_name"]) //TODO:城市名和state缩写分开
 			al.DestCity = cast.ToString(source["dest_city_name"])
 			al.AirCarrier = airlineMap[cast.ToString(source["reporting_airline"])]
+
+			origin_city_market_id := cast.ToString(source["origin_city_market_id"])
+			dest_city_market_id := cast.ToString(source["dest_city_market_id"])
+			originDomestic, _ := cityInfoMap[origin_city_market_id]
+			destDomestic, _ := cityInfoMap[dest_city_market_id]
+			if originDomestic && destDomestic {
+				al.Domestic = true
+			} else {
+				al.Domestic = false
+			}
 
 			req := elastic.NewBulkIndexRequest().Index(AirlinesIndexName).Id(strings.Join([]string{cast.ToString(bucket.Key["origin"]), cast.ToString(bucket.Key["dest"]), cast.ToString(bucket.Key["tail_number"])}, "_")).Doc(al)
 			count++
@@ -756,6 +815,7 @@ type Airline struct {
 	DestAirport   string `json:"dest_airport"`
 	DestCity      string `json:"dest_city"`
 	AirCarrier    string `json:"air_carrier"`
+	Domestic      bool   `json:"domestic"`
 	TailNumber    string `json:"tail_number"`
 }
 type OntimeAirportFlightReport struct {
@@ -771,4 +831,10 @@ type OntimeAirportFlightReport struct {
 	DelayedArrivalCount     int64  `json:"delayed_arrival_count"`
 	Delayed15ArrivalCount   int64  `json:"delayed_15_arrival_count"`
 	CancelledCount          int64  `json:"cancelled_count"`
+}
+type CityInfo struct {
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	Code     string `json:"code"`
+	Domestic bool   `json:"domestic"`
 }
