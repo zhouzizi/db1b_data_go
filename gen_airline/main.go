@@ -114,6 +114,10 @@ func readCityInfoIndexData() {
 		fmt.Println("cityInfoCount", count, "map len:", len(cityInfoMap))
 		os.Exit(0)
 	}
+	if count == 0{
+		fmt.Println("cityInfoCount nil")
+		os.Exit(0)
+	}
 	fmt.Println("load cityInfo ok.")
 }
 
