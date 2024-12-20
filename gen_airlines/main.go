@@ -15,15 +15,10 @@ import (
 )
 
 const (
-	//ESUrl       = "http://127.0.0.1:9200/"
-	bulkActions = 1000
-
-	CityInfoIndexName                  = "city_info"
-	OnTimeDataIndexName                = "on_time_data"
-	AirlinesIndexName                  = "airlines"
-	OriginAirportFlightReportIndexName = "origin_airport_flight_report"
-
-	DestAirportFlightReportIndexName = "dest_airport_flight_report"
+	bulkActions         = 1000
+	CityInfoIndexName   = "city_info"
+	OnTimeDataIndexName = "on_time_data"
+	AirlinesIndexName   = "airlines"
 )
 
 var (
