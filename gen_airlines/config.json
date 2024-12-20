@@ -1,0 +1,10 @@
+{
+  "dates": [
+    {"year": 2020, "month": 2}
+  ],
+  "elasticsearch": {
+    "url": "http://127.0.0.1:9200",
+    "username": "",
+    "password": ""
+  }
+}
