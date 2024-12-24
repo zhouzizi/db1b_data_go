@@ -1,6 +1,6 @@
 ## index索引名称
 
-`dest_airport_flight_report`
+`origin_airport_flight_report`
 
 ## 字段说明
 
